@@ -1,0 +1,17 @@
+--- Cosine Similarity Demonstration ---
+
+1. Identical Vectors: [1.0, 2.0, 3.0] and [1.0, 2.0, 3.0]
+   Score: 1.0000
+   Angle: 0.00°
+
+2. Orthogonal Vectors: [1.0, 0.0] and [0.0, 1.0]
+   Score: 0.0000
+   Angle: 90.00°
+
+3. Opposite Vectors: [1.0, 1.0] and [-1.0, -1.0]
+   Score: -1.0000
+   Angle: 180.00°
+
+4. Similar Vectors: [1.0, 2.0, 0.1] and [1.1, 1.9, -0.1]
+   Score: 0.9941
+   Angle: 6.24°
