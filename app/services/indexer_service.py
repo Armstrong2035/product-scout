@@ -1,7 +1,7 @@
 import json
 import os
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app.services.shopify_service import ShopifyService
 from app.services.embedding_service import EmbeddingService
 from app.services.vector_service import VectorService
@@ -72,31 +72,39 @@ class IndexerService:
             cleaned.append(item)
         return cleaned
 
-    async def run_indexing_pipeline(self):
+    async def run_indexing_pipeline(self, shop_url: Optional[str] = None, admin_access_token: Optional[str] = None):
         """
-        Automated pipeline: Extract -> Clean -> Vectorize -> Save
+        Automated pipeline: Extract -> Clean -> Vectorize -> Save to Namespace
         """
-        shopify = ShopifyService()
-        print("[INDEXER] Starting extraction from Shopify (GraphQL)...")
+        # 1. Initialize Shopify with specific credentials if provided
+        shopify = ShopifyService(shop_url=shop_url, admin_access_token=admin_access_token)
+        current_shop = shopify.shop_url
+        
+        if not current_shop:
+            print("[INDEXER ERROR] No shop URL provided.")
+            return 0
+            
+        print(f"[INDEXER] Starting extraction for '{current_shop}' (GraphQL)...")
         raw_products = await shopify.fetch_all_products_graphql()
         
         print(f"[INDEXER] Extracted {len(raw_products)} products.")
         if not raw_products:
-            print("[INDEXER WARNING] No products fetched. Check Shopify credentials or scopes.")
+            print(f"[INDEXER WARNING] No products fetched for {current_shop}.")
             return 0
             
         print("[INDEXER] Cleaning data...")
         clean_data = self.clean_product_data(raw_products)
-        print(f"[INDEXER] Cleaned {len(clean_data)} products.")
         
-        # Save raw clean data
-        os.makedirs(os.path.dirname(self.kb_path), exist_ok=True)
-        with open(self.kb_path, "w", encoding="utf-8") as f:
+        # 2. Local Backup (Shop-specific)
+        shop_safe_name = current_shop.replace(".", "_")
+        shop_kb_path = f"data/merchants/{shop_safe_name}_kb.json"
+        os.makedirs(os.path.dirname(shop_kb_path), exist_ok=True)
+        with open(shop_kb_path, "w", encoding="utf-8") as f:
             json.dump(clean_data, f, indent=2)
             
-        # 3. Vectorize and Push to Pinecone
+        # 3. Vectorize and Push to Pinecone Namespace
         vector_service = VectorService()
-        print(f"[INDEXER] Generating embeddings and syncing to Pinecone for {len(clean_data)} products...")
+        print(f"[INDEXER] Generating embeddings for {len(clean_data)} products...")
         pinecone_vectors = []
         
         for item in clean_data:
@@ -110,7 +118,7 @@ class IndexerService:
                     "metadata": {
                         "title": item["title"],
                         "handle": item["handle"],
-                        "description": item["content"], # Storing the cleaned content as description
+                        "description": item["content"],
                         "storefront_id": item["storefront_id"],
                         "price": str(item["price"]),
                         "image_url": item["image_url"] or "",
@@ -123,8 +131,9 @@ class IndexerService:
                 print(f"[INDEXER ERROR] Failed to embed product {item['id']}: {e}")
             
         if pinecone_vectors:
-            vector_service.upsert_vectors(pinecone_vectors)
-            print(f"[INDEXER] Pipeline complete! Vectorized and pushed {len(pinecone_vectors)} products to Pinecone.")
+            # Using shop_url as the hard namespace for isolation
+            vector_service.upsert_vectors(pinecone_vectors, namespace=current_shop)
+            print(f"[INDEXER] Pipeline complete! Pushed {len(pinecone_vectors)} products to Pinecone namespace '{current_shop}'.")
         else:
             print("[INDEXER WARNING] No vectors were generated.")
             

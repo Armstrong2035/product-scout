@@ -38,22 +38,23 @@ class VectorService:
         else:
             print(f"[VECTOR] Connected to existing Pinecone index: {self.index_name}")
 
-    def upsert_vectors(self, vectors: List[Dict[str, Any]]):
+    def upsert_vectors(self, vectors: List[Dict[str, Any]], namespace: str):
         """
-        Pushes embeddings to Pinecone with metadata.
+        Pushes embeddings to Pinecone with metadata in a specific namespace.
         Expected format: [{'id': '...', 'values': [...], 'metadata': {...}}]
         """
-        print(f"[VECTOR] Upserting {len(vectors)} vectors...")
-        self.index.upsert(vectors=vectors)
+        print(f"[VECTOR] Upserting {len(vectors)} vectors to namespace '{namespace}'...")
+        self.index.upsert(vectors=vectors, namespace=namespace)
 
-    def query_vectors(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
+    def query_vectors(self, query_embedding: List[float], namespace: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """
-        Searches Pinecone for similar vectors.
+        Searches Pinecone for similar vectors within a specific namespace.
         """
         results = self.index.query(
             vector=query_embedding,
             top_k=top_k,
-            include_metadata=True
+            include_metadata=True,
+            namespace=namespace
         )
         
         # Format results to match our API expectation

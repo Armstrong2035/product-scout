@@ -1,14 +1,14 @@
 import httpx
 import os
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class ShopifyService:
-    def __init__(self):
-        # Align with the latest .env keys provided by the user
-        self.shop_url = os.getenv("CUSTOM_SHOP_URL") or os.getenv("SHOPIFY_SHOP_URL")
-        self.admin_access_token = os.getenv("CUSTOM_SHOP_ADMIN_ACCESS_TOKEN")
-        self.storefront_access_token = os.getenv("SHOPIFY_STOREFRONT_TOKEN")
+    def __init__(self, shop_url: Optional[str] = None, admin_access_token: Optional[str] = None, storefront_access_token: Optional[str] = None):
+        # Allow passing creds directly (multi-tenancy) or falling back to .env (single-tenancy/dev)
+        self.shop_url = shop_url or os.getenv("CUSTOM_SHOP_URL") or os.getenv("SHOPIFY_SHOP_URL")
+        self.admin_access_token = admin_access_token or os.getenv("CUSTOM_SHOP_ADMIN_ACCESS_TOKEN")
+        self.storefront_access_token = storefront_access_token or os.getenv("SHOPIFY_STOREFRONT_TOKEN")
         self.api_version = os.getenv("SHOPIFY_API_VERSION", "2024-01")
         
     async def fetch_all_products_graphql(self) -> List[Dict[str, Any]]:
@@ -115,11 +115,11 @@ class ShopifyService:
     async def fetch_storefront_data(self, product_ids: List[str]) -> Dict[str, Any]:
         """
         Fetches live hydrated data (price, availability, images) from Storefront API.
-        Uses GraphQL for efficiency.
+        If credentials are missing, it returns 'simulation' data to keep the UI alive.
         """
         if not self.shop_url or not self.storefront_access_token:
-            print("[SHOPIFY] Storefront credentials missing, skipping hydration.")
-            return {}
+            print("[SHOPIFY] Storefront credentials missing, using SIMULATION mode.")
+            return self._simulate_storefront_data(product_ids)
 
         query = """
         query getProducts($ids: [ID!]!) {
@@ -160,6 +160,11 @@ class ShopifyService:
                 response.raise_for_status()
                 data = response.json()
                 
+                # If Shopify returns errors (e.g. invalid token), switch to simulation
+                if "errors" in data:
+                    print(f"[SHOPIFY WARNING] Storefront API error, falling back to Simulation.")
+                    return self._simulate_storefront_data(product_ids)
+
                 # Map by ID for easy lookup
                 hydrated = {}
                 for node in data.get("data", {}).get("nodes", []):
@@ -167,5 +172,21 @@ class ShopifyService:
                         hydrated[node["id"]] = node
                 return hydrated
         except Exception as e:
-            print(f"[SHOPIFY ERROR] Storefront hydration failed: {e}")
-            return {}
+            print(f"[SHOPIFY ERROR] Storefront hydration failed ({e}), using Simulation.")
+            return self._simulate_storefront_data(product_ids)
+
+    def _simulate_storefront_data(self, product_ids: List[str]) -> Dict[str, Any]:
+        """Returns mock data for the MVP to allow UI development without a token."""
+        mocked = {}
+        for gid in product_ids:
+            mocked[gid] = {
+                "id": gid,
+                "availableForSale": True,
+                "priceRange": {
+                    "minVariantPrice": {
+                        "amount": "99.99", # Placeholder
+                        "currencyCode": "USD"
+                    }
+                }
+            }
+        return mocked
