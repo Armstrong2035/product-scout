@@ -24,8 +24,8 @@ app.add_middleware(
 )
 
 # --- Configuration ---
-SHOPIFY_API_KEY = os.getenv("CUSTOM_SHOP_API_KEY")
-SHOPIFY_API_SECRET = os.getenv("CUSTOM_SHOP_ADMIN_SECRET_KEY")
+SHOPIFY_CLIENT_ID = os.getenv("SHOPIFY_CLIENT_ID")
+SHOPIFY_CLIENT_SECRET = os.getenv("SHOPIFY_CLIENT_SECRET")
 APP_URL = os.getenv("APP_URL", "http://localhost:8000") 
 SCOPES = "read_products,read_metafields"
 
@@ -70,7 +70,7 @@ async def auth(shop: str = Query(...)):
     redirect_uri = f"{APP_URL}/auth/callback"
     install_url = (
         f"https://{shop}/admin/oauth/authorize?"
-        f"client_id={SHOPIFY_API_KEY}&"
+        f"client_id={SHOPIFY_CLIENT_ID}&"
         f"scope={SCOPES}&"
         f"redirect_uri={redirect_uri}"
     )
@@ -100,15 +100,15 @@ async def auth_callback(request: Request, shop: str, code: str):
     """Handles the redirect back from Shopify after merchant approval."""
     # 1. Verify HMAC (Crucial Security Step)
     params = dict(request.query_params)
-    if not verify_shopify_hmac(params, SHOPIFY_API_SECRET):
+    if not verify_shopify_hmac(params, SHOPIFY_CLIENT_SECRET):
         print(f"[AUTH ERROR] HMAC verification failed for {shop}")
         raise HTTPException(status_code=401, detail="HMAC verification failed")
     
     # 2. Exchange code for permanent token
     url = f"https://{shop}/admin/oauth/access_token"
     data = {
-        "client_id": SHOPIFY_API_KEY,
-        "client_secret": SHOPIFY_API_SECRET,
+        "client_id": SHOPIFY_CLIENT_ID,
+        "client_secret": SHOPIFY_CLIENT_SECRET,
         "code": code
     }
     
