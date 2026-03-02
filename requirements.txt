@@ -6,4 +6,6 @@ google-generativeai
 python-dotenv
 supabase
 pinecone
+qdrant-client
+fastembed
 gunicorn

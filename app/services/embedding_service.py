@@ -1,35 +1,45 @@
-import google.generativeai as genai
+try:
+    from fastembed import TextEmbedding, TextCrossEncoder
+    FASTEMBED_AVAILABLE = True
+except ImportError:
+    FASTEMBED_AVAILABLE = False
+    print("[EMBEDDING] Warning: FastEmbed not found. Falling back to Mock Mode.")
+
 import os
-from typing import List
+from typing import List, Dict, Any
 
 class EmbeddingService:
     def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
+        if FASTEMBED_AVAILABLE:
+            self.embedding_model = TextEmbedding("BAAI/bge-small-en-v1.5")
+            self.rerank_model = TextCrossEncoder("BAAI/bge-reranker-base")
+        else:
+            self.embedding_model = None
+            self.rerank_model = None
             
     async def get_embeddings(self, text: str) -> List[float]:
-        """
-        Generates vector embeddings for a given string using Gemini models/gemini-embedding-001.
-        """
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY not configured")
+        """Generates vector embeddings locally or returns mocks."""
+        if not self.embedding_model:
+            return [0.1] * 384 # Mock vector
             
-        # Using synchronous call in a way that's safe for this context
-        # In a high-traffic app, we might use a dedicated async client if available
-        result = genai.embed_content(
-            model="models/gemini-embedding-001",
-            content=text,
-            task_type="retrieval_document",
-            title="Product Search"
-        )
-        return result['embedding']
+        embeddings = list(self.embedding_model.embed([text]))
+        return embeddings[0].tolist()
 
     async def get_query_embedding(self, text: str) -> List[float]:
-        """Specific task type for queries."""
-        result = genai.embed_content(
-            model="models/gemini-embedding-001",
-            content=text,
-            task_type="retrieval_query"
-        )
-        return result['embedding']
+        return await self.get_embeddings(text)
+
+    def rerank(self, query: str, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Re-sorts products locally or returns hardcoded shuffle in mock mode."""
+        if not self.rerank_model:
+            # Simple mock: just reverse the order so people see the "Refinement" event
+            for doc in documents:
+                doc["rerank_score"] = doc.get("score", 0.5) + 0.1
+            return documents[::-1]
+
+        pairs = [(query, doc.get("description", "")) for doc in documents]
+        scores = list(self.rerank_model.predict(pairs))
+        
+        for i, doc in enumerate(documents):
+            doc["rerank_score"] = float(scores[i])
+            
+        return sorted(documents, key=lambda x: x["rerank_score"], reverse=True)

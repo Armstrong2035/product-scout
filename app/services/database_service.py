@@ -19,13 +19,14 @@ class DatabaseService:
         else:
             self.client: Client = create_client(self.url, self.key)
 
-    async def get_merchant(self, shop_url: str) -> Optional[Dict[str, Any]]:
-        """Fetch merchant details from the registry."""
+    async def get_merchant(self, site_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch merchant details using site_id (mapped to shop_url column)."""
         if not self.client:
             return None
             
         try:
-            response = self.client.table("merchants").select("*").eq("shop_url", shop_url).execute()
+            # We keep the column name as 'shop_url' in the DB for now
+            response = self.client.table("merchants").select("*").eq("shop_url", site_id).execute()
             return response.data[0] if response.data else None
         except Exception as e:
             print(f"[DATABASE ERROR] Failed to fetch merchant: {e}")
@@ -43,20 +44,18 @@ class DatabaseService:
             print(f"[DATABASE ERROR] Failed to save merchant: {e}")
             return False
 
-    async def update_credits(self, shop_url: str, amount: int) -> bool:
+    async def update_credits(self, site_id: str, amount: int) -> bool:
         """Atomically update credit balance."""
         if not self.client:
             return False
         
-        # Note: In a production app, we would use an RPC call for atomic increment/decrement
-        # server-side to prevent race conditions.
         try:
-            merchant = await self.get_merchant(shop_url)
+            merchant = await self.get_merchant(site_id)
             if not merchant:
                 return False
                 
             new_balance = merchant.get("credits_balance", 0) + amount
-            self.client.table("merchants").update({"credits_balance": new_balance}).eq("shop_url", shop_url).execute()
+            self.client.table("merchants").update({"credits_balance": new_balance}).eq("shop_url", site_id).execute()
             return True
         except Exception as e:
             print(f"[DATABASE ERROR] Failed to update credits: {e}")
