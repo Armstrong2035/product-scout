@@ -1,9 +1,20 @@
 try:
-    from fastembed import TextEmbedding, TextCrossEncoder
+    from fastembed import TextEmbedding
     FASTEMBED_AVAILABLE = True
 except ImportError:
     FASTEMBED_AVAILABLE = False
     print("[EMBEDDING] Warning: FastEmbed not found. Falling back to Mock Mode.")
+
+try:
+    from fastembed import TextCrossEncoder
+    RERANKER_AVAILABLE = True
+except ImportError:
+    try:
+        from fastembed.reranker.cross_encoder import TextCrossEncoder
+        RERANKER_AVAILABLE = True
+    except ImportError:
+        RERANKER_AVAILABLE = False
+        print("[EMBEDDING] Warning: TextCrossEncoder not found. Reranking will use score-based fallback.")
 
 import os
 from typing import List, Dict, Any
@@ -12,9 +23,12 @@ class EmbeddingService:
     def __init__(self):
         if FASTEMBED_AVAILABLE:
             self.embedding_model = TextEmbedding("BAAI/bge-small-en-v1.5")
-            self.rerank_model = TextCrossEncoder("BAAI/bge-reranker-base")
         else:
             self.embedding_model = None
+
+        if RERANKER_AVAILABLE:
+            self.rerank_model = TextCrossEncoder("BAAI/bge-reranker-base")
+        else:
             self.rerank_model = None
             
     async def get_embeddings(self, text: str) -> List[float]:
