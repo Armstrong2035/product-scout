@@ -67,7 +67,7 @@ class QdrantService:
                 {"id": 3, "score": 0.7, "metadata": {"handle": "waterproof-sneakers", "storefront_id": "gid://3", "title": "Waterproof Sneakers"}}
             ]
 
-        results = self.client.search_points(
+        results = self.client.search(
             collection_name=self.collection_name,
             query_vector=query_vector,
             query_filter=models.Filter(
