@@ -8,11 +8,16 @@ load_dotenv()
 
 async def main():
     print("--- Starting Manual Indexing Job ---")
+    site_id = os.getenv("SHOPIFY_SHOP_URL") # Try to get from .env
+    
+    if not site_id:
+        print("[ERROR] SHOPIFY_SHOP_URL not found in .env. Please set it to your store domain (e.g. store.myshopify.com)")
+        return
+
     try:
         indexer = IndexerService()
-        count = await indexer.run_indexing_pipeline()
-        print(f"\n[SUCCESS] Indexed {count} products.")
-        print(f"Vectors saved to: {indexer.vector_path}")
+        count = await indexer.run_indexing_pipeline(site_id=site_id)
+        print(f"\n[SUCCESS] Indexed {count} products for '{site_id}'.")
     except Exception as e:
         print(f"\n[ERROR] Indexing failed: {e}")
 

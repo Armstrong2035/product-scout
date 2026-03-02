@@ -52,10 +52,14 @@ class IndexerService:
         """
         Automated pipeline: Extract -> Clean -> Vectorize -> Push to Qdrant
         """
-        shopify = ShopifyService(shop_url=site_id, admin_access_token=admin_access_token)
-        current_site = shopify.shop_url # Shopify fallback logic
+        # Fallback to env if site_id not provided
+        target_site = site_id or os.getenv("SHOPIFY_SHOP_URL")
+        
+        shopify = ShopifyService(shop_url=target_site, admin_access_token=admin_access_token)
+        current_site = shopify.shop_url
         
         if not current_site:
+            print("[INDEXER] Error: No site_id provided or found in environment.")
             return 0
             
         print(f"[INDEXER] Starting extraction for site '{current_site}'...")
