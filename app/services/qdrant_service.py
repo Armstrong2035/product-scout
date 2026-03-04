@@ -67,9 +67,9 @@ class QdrantService:
                 {"id": 3, "score": 0.7, "metadata": {"handle": "waterproof-sneakers", "storefront_id": "gid://3", "title": "Waterproof Sneakers"}}
             ]
 
-        results = self.client.search(
+        response = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=models.Filter(
                 must=[
                     models.FieldCondition(
@@ -79,11 +79,10 @@ class QdrantService:
                 ]
             ),
             limit=limit,
-            with_payload=True
         )
 
         matches = []
-        for res in results:
+        for res in response.points:
             matches.append({
                 "id": res.id,
                 "score": res.score,

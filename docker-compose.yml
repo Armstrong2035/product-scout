@@ -20,5 +20,6 @@ services:
     depends_on:
       - qdrant
     volumes:
-      - ./cache/fastembed:/root/.cache/fastembed
+      - .:/app                                   # Live code sync — edit on VPS, instant effect
+      - ./cache/fastembed:/root/.cache/fastembed  # Cache AI models between restarts
     restart: always
