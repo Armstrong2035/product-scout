@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import asyncio
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -20,75 +21,100 @@ class SearchRequest(BaseModel):
 
 async def generate_search_stream(request: SearchRequest):
     """
-    SSE Generator for multi-stage search refinement.
-    Decoupled: Returns IDs and Scores, letting client handle hydration.
+    SSE Generator. Two events:
+      1. 'products' — reranked product IDs/handles (fast)
+      2. 'reasoning' — same products with per-product 'reason' field (after AI)
+    
+    Both events include '_ms' for latency profiling.
     """
+    t_start = time.monotonic()
+
     try:
-        # 1. Setup Services
         embedder = EmbeddingService()
         vector_service = QdrantService()
 
-        # 2. Stage 1: Vector Search (Instant)
+        # Stage 1: Embed query + vector search + rerank
         query_vector = await embedder.get_query_embedding(request.query)
         top_matches = vector_service.query_vectors(
-            query_vector, 
-            site_id=request.site_id, 
-            limit=15 # Get more for reranking
+            query_vector,
+            site_id=request.site_id,
+            limit=15  # extra candidates for reranking
         )
 
         if not top_matches:
             yield f"data: {json.dumps({'event': 'empty'})}\n\n"
             return
 
-        # Return minimal data for instant rendering/hydration start
-        initial_results = []
-        for match in top_matches[:5]:
-            meta = match["metadata"]
-            initial_results.append({
-                "id": meta.get("storefront_id") or str(match["id"]),
-                "handle": meta.get("handle"),
-                "score": match["score"]
-            })
-
-        yield f"data: {json.dumps({'event': 'products', 'data': initial_results})}\n\n"
-
-        # 3. Stage 2: Re-ranking (Refinement)
-        reranked_matches = embedder.rerank(request.query, [
-            {"id": m["id"], "description": m["metadata"].get("description", ""), "metadata": m["metadata"], "score": m["score"]} 
+        reranked = embedder.rerank(request.query, [
+            {
+                "id": m["id"],
+                "description": m["metadata"].get("description", ""),
+                "metadata": m["metadata"],
+                "score": m["score"]
+            }
             for m in top_matches
         ])
-        
-        # Always return refined top 5 to ensure best accuracy
-        refined_results = []
-        for match in reranked_matches[:5]:
+
+        top5 = reranked[:5]
+        t_search_done = time.monotonic()
+
+        # Emit products immediately (no reasons yet)
+        products_payload = []
+        for match in top5:
             meta = match["metadata"]
-            refined_results.append({
+            products_payload.append({
                 "id": meta.get("storefront_id") or str(match["id"]),
                 "handle": meta.get("handle"),
                 "score": match["rerank_score"]
             })
-        yield f"data: {json.dumps({'event': 'refined', 'data': refined_results})}\n\n"
 
-        # 4. Stage 3: AI Reasoning (The "Why")
+        yield f"data: {json.dumps({'event': 'products', 'data': products_payload, '_ms': round((t_search_done - t_start) * 1000)})}\n\n"
+
+        # Stage 2: Per-product AI reasoning (single Gemini call)
         try:
             genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            
-            top_3_titles = [m["metadata"].get("title") for m in reranked_matches[:3]]
-            prompt = f"User: {request.query}\nProducts: {', '.join(top_3_titles)}\nExplain in 2 short sentences why these match."
-            
+            model = genai.GenerativeModel("gemini-1.5-flash")
+
+            product_list = "\n".join([
+                f"{i+1}. {m['metadata'].get('title', 'Unknown')}: {m['metadata'].get('description', '')[:200]}"
+                for i, m in enumerate(top5)
+            ])
+
+            prompt = (
+                f"User searched for: \"{request.query}\"\n\n"
+                f"Top matching products:\n{product_list}\n\n"
+                f"For each product, write ONE short sentence (max 15 words) explaining why it matches the search. "
+                f"Return ONLY valid JSON, no markdown, in this exact format:\n"
+                f"{{\"1\": \"reason\", \"2\": \"reason\", \"3\": \"reason\", \"4\": \"reason\", \"5\": \"reason\"}}"
+            )
+
+            t_before_ai = time.monotonic()
             response = await asyncio.to_thread(model.generate_content, prompt)
-            yield f"data: {json.dumps({'event': 'reasoning', 'text': response.text.strip()})}\n\n"
-        except Exception:
-            pass # Reasoning is optional/fail-safe
+            t_after_ai = time.monotonic()
+
+            raw = response.text.strip().strip("```json").strip("```").strip()
+            explanations = json.loads(raw)
+
+            reasoned_payload = []
+            for i, match in enumerate(top5):
+                meta = match["metadata"]
+                reasoned_payload.append({
+                    "id": meta.get("storefront_id") or str(match["id"]),
+                    "handle": meta.get("handle"),
+                    "score": match["rerank_score"],
+                    "reason": explanations.get(str(i + 1), "")
+                })
+
+            yield f"data: {json.dumps({'event': 'reasoning', 'data': reasoned_payload, '_ms': round((t_after_ai - t_start) * 1000)})}\n\n"
+
+        except Exception as e:
+            print(f"[REASONING ERROR] {e}")
+            # Silently skip — products were already delivered
 
     except Exception as e:
         print(f"[STREAM ERROR] {e}")
         yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
 
-    except Exception as e:
-        print(f"[STREAM ERROR] {e}")
-        yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
 
 @router.post("/search")
 async def search_products(request: SearchRequest):
@@ -106,7 +132,7 @@ async def trigger_reindex(shop_url: str):
             
         indexer = IndexerService()
         count = await indexer.run_indexing_pipeline(
-            shop_url=shop_url, 
+            site_id=shop_url, 
             admin_access_token=merchant["access_token"]
         )
         return {"message": f"Reindexing for {shop_url} complete", "count": count}
