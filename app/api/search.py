@@ -73,7 +73,7 @@ async def generate_search_stream(request: SearchRequest):
         # Stage 2: Per-product AI reasoning (single Gemini call)
         try:
             genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-2.5-flash")
 
             product_list = "\n".join([
                 f"{i+1}. {m['metadata'].get('title', 'Unknown')}: {m['metadata'].get('description', '')[:200]}"
@@ -92,8 +92,18 @@ async def generate_search_stream(request: SearchRequest):
             response = await asyncio.to_thread(model.generate_content, prompt)
             t_after_ai = time.monotonic()
 
-            raw = response.text.strip().strip("```json").strip("```").strip()
-            explanations = json.loads(raw)
+            raw = response.text.strip()
+
+            # Emit raw Gemini response directly so it shows in curl output
+            yield f"data: {json.dumps({'event': 'debug_raw', 'gemini': raw[:500], '_ms': round((t_after_ai - t_start) * 1000)})}\n\n"
+
+            # Strip markdown code fences if present
+            import re
+            json_match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if json_match:
+                explanations = json.loads(json_match.group())
+            else:
+                raise ValueError(f"No JSON found in response: {raw[:100]}")
 
             reasoned_payload = []
             for i, match in enumerate(top5):
