@@ -31,6 +31,14 @@ class QdrantService:
                 vectors_config=models.VectorParams(size=vector_size, distance=models.Distance.COSINE),
             )
 
+    def delete_collection(self):
+        """Drops the collection entirely so it can be recreated with a new vector size."""
+        try:
+            self.client.delete_collection(self.collection_name)
+            print(f"[QDRANT] Collection '{self.collection_name}' deleted.")
+        except Exception as e:
+            print(f"[QDRANT] Could not delete collection: {e}")
+
     def upsert_vectors(self, points: List[Dict[str, Any]], site_id: str):
         """
         Upserts vectors to Qdrant. 

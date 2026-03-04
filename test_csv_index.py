@@ -23,6 +23,10 @@ async def main():
     embedding_svc = EmbeddingService()
     qdrant_svc = QdrantService()
 
+    # Drop existing collection — required when changing embedding model/vector size
+    print("Dropping existing collection to recreate with new vector dimensions...")
+    qdrant_svc.delete_collection()
+
     # Read products from CSV
     products = []
     with open(CSV_FILE, newline="", encoding="utf-8") as f:

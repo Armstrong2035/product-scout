@@ -22,7 +22,7 @@ from typing import List, Dict, Any
 class EmbeddingService:
     def __init__(self):
         if FASTEMBED_AVAILABLE:
-            self.embedding_model = TextEmbedding("BAAI/bge-small-en-v1.5")
+            self.embedding_model = TextEmbedding("BAAI/bge-base-en-v1.5")
         else:
             self.embedding_model = None
 
@@ -34,7 +34,7 @@ class EmbeddingService:
     async def get_embeddings(self, text: str) -> List[float]:
         """Generates vector embeddings locally or returns mocks."""
         if not self.embedding_model:
-            return [0.1] * 384 # Mock vector
+            return [0.1] * 768 # Mock vector (bge-base = 768 dims)
             
         embeddings = list(self.embedding_model.embed([text]))
         return embeddings[0].tolist()

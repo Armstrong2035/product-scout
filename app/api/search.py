@@ -81,10 +81,16 @@ async def generate_search_stream(request: SearchRequest):
             ])
 
             prompt = (
-                f"User searched for: \"{request.query}\"\n\n"
-                f"Top matching products:\n{product_list}\n\n"
-                f"For each product, write ONE short sentence (max 15 words) explaining why it matches the search. "
-                f"Return ONLY valid JSON, no markdown, in this exact format:\n"
+                f"You are a friendly, knowledgeable sales assistant helping a customer who searched for: \"{request.query}\".\n\n"
+                f"Here are the top matching products:\n{product_list}\n\n"
+                f"For each product, write a short, enthusiastic 1-sentence recommendation (max 20 words) "
+                f"in a conversational sales tone — like you're talking directly to the customer, "
+                f"highlighting why THIS product fits what they're looking for.\n\n"
+                f"Examples of the right tone:\n"
+                f"- \"If you want speed on groomed runs, this one's a no-brainer.\"\n"
+                f"- \"Great pick for beginners — super forgiving and easy to control.\"\n"
+                f"- \"This is the one serious riders keep coming back to.\"\n\n"
+                f"Return ONLY valid JSON, no markdown:\n"
                 f"{{\"1\": \"reason\", \"2\": \"reason\", \"3\": \"reason\", \"4\": \"reason\", \"5\": \"reason\"}}"
             )
 
@@ -93,9 +99,6 @@ async def generate_search_stream(request: SearchRequest):
             t_after_ai = time.monotonic()
 
             raw = response.text.strip()
-
-            # Emit raw Gemini response directly so it shows in curl output
-            yield f"data: {json.dumps({'event': 'debug_raw', 'gemini': raw[:500], '_ms': round((t_after_ai - t_start) * 1000)})}\n\n"
 
             # Strip markdown code fences if present
             import re
