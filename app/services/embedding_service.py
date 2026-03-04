@@ -40,7 +40,12 @@ class EmbeddingService:
         return embeddings[0].tolist()
 
     async def get_query_embedding(self, text: str) -> List[float]:
-        return await self.get_embeddings(text)
+        """Uses query_embed() for correct asymmetric retrieval with BGE models."""
+        if not self.embedding_model:
+            return [0.1] * 768
+
+        embeddings = list(self.embedding_model.query_embed([text]))
+        return embeddings[0].tolist()
 
     def rerank(self, query: str, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Re-sorts products locally or returns hardcoded shuffle in mock mode."""
