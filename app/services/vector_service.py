@@ -15,10 +15,16 @@ class VectorService:
             raise ValueError("PINE_CONE_API_KEY not found in environment")
             
         self.pc = Pinecone(api_key=self.api_key)
-        
-        # Ensure index exists
-        self._ensure_index_exists()
-        self.index = self.pc.Index(self.index_name)
+        # Lazy — don't connect to the index until first use
+        self._index = None
+
+    @property
+    def index(self):
+        """Connect to Pinecone index on first access, not at startup."""
+        if self._index is None:
+            self._ensure_index_exists()
+            self._index = self.pc.Index(self.index_name)
+        return self._index
 
     def _ensure_index_exists(self):
         """Creates the index if it doesn't already exist."""
@@ -35,7 +41,6 @@ class VectorService:
                     region="us-east-1"
                 )
             )
-            # Wait for index to be ready
             while not self.pc.describe_index(self.index_name).status['ready']:
                 time.sleep(1)
         else:
@@ -66,7 +71,7 @@ class VectorService:
 
     @staticmethod
     def detect_score_gap(matches: List[Dict[str, Any]], min_results: int = 5) -> List[Dict[str, Any]]:
-        """Scans consecutive score differences and cuts at the largest gap."""
+        """Trims results at the natural cluster boundary."""
         if len(matches) <= min_results:
             return matches
 

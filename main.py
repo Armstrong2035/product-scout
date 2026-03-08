@@ -10,7 +10,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.search import router as search_router
 from app.api.tracking import router as tracking_router
 from app.services.database_service import DatabaseService
-from app.services.indexer_service import IndexerService
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -152,6 +151,7 @@ async def auth_callback(request: Request, shop: str, code: str):
         await db.save_merchant(merchant_data)
         
         # 5. Trigger initial indexing in the background
+        from app.services.indexer_service import IndexerService
         indexer = IndexerService()
         import asyncio
         asyncio.create_task(indexer.run_indexing_pipeline(shop, access_token))
