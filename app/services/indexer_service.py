@@ -56,7 +56,7 @@ class IndexerService:
         result = await loop.run_in_executor(
             None,
             lambda: genai.embed_content(
-                model="models/text-embedding-004",
+                model="models/gemini-embedding-001",
                 content=text,
                 task_type="retrieval_document"
             )

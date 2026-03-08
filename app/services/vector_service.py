@@ -28,7 +28,7 @@ class VectorService:
             print(f"[VECTOR] Creating new Pinecone index: {self.index_name}")
             self.pc.create_index(
                 name=self.index_name,
-                dimension=3072, # Gemini Embedding dimension (e.g. text-embedding-004)
+                dimension=768, # Gemini embedding-001 dimension
                 metric="cosine",
                 spec=ServerlessSpec(
                     cloud="aws",
@@ -46,7 +46,7 @@ class VectorService:
         print(f"[VECTOR] Upserting {len(vectors)} vectors to namespace '{namespace}'...")
         self.index.upsert(vectors=vectors, namespace=namespace)
 
-    def query_vectors(self, query_embedding: List[float], namespace: str, top_k: int = 5) -> List[Dict[Dict[str, Any]]]:
+    def query_vectors(self, query_embedding: List[float], namespace: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """Searches Pinecone for similar vectors within a specific namespace."""
         results = self.index.query(
             vector=query_embedding,
