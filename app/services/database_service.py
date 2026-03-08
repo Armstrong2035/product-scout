@@ -77,7 +77,7 @@ class DatabaseService:
         """Log search telemetry to Supabase."""
         if not self.client: return
         try:
-            self.client.table("search_analytics").insert(analytics_data).execute()
+            self.client.table("search_logs").insert(analytics_data).execute()
         except Exception as e:
             print(f"[DATABASE ERROR] Failed to log search: {e}")
 
@@ -107,3 +107,18 @@ class DatabaseService:
         except Exception as e:
             print(f"[DATABASE ERROR] Failed to fetch analytics: {e}")
             return None
+
+    async def get_recent_searches(self, shop_url: str, limit: int = 50) -> list:
+        """Fetch the most recent searches for the live feed."""
+        if not self.client: return []
+        try:
+            res = self.client.table("search_logs")\
+                .select("id, query, result_count, created_at, latency_ms")\
+                .eq("shop_url", shop_url)\
+                .order("created_at", desc=True)\
+                .limit(limit)\
+                .execute()
+            return res.data
+        except Exception as e:
+            print(f"[DATABASE ERROR] Failed to fetch recent searches: {e}")
+            return []

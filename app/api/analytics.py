@@ -46,3 +46,27 @@ async def get_analytics_dashboard(
     except Exception as e:
         print(f"[ANALYTICS ERROR] {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch analytics dashboard data")
+
+@router.get("/recent-searches")
+async def get_recent_searches_feed(
+    shop_url: str = Query(..., description="The Shopify store domain"),
+    limit: int = Query(50, description="Max number of searches to return")
+):
+    """
+    Returns a live feed of the most recent searches for the given shop.
+    Returns: list of dicts with id, query, result_count, created_at, latency_ms.
+    """
+    try:
+        db = DatabaseService()
+        
+        # Verify merchant
+        merchant = await db.get_merchant(shop_url)
+        if not merchant:
+            raise HTTPException(status_code=404, detail="Merchant not found or unauthorized.")
+            
+        recent = await db.get_recent_searches(shop_url=shop_url, limit=limit)
+        return {"recent_searches": recent}
+        
+    except Exception as e:
+        print(f"[ANALYTICS ERROR] {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch recent searches feed")
