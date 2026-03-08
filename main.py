@@ -3,10 +3,12 @@ import hmac
 import hashlib
 import httpx
 from fastapi import FastAPI, Request, HTTPException, Query, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.search import router as search_router
+from app.api.tracking import router as tracking_router
 from app.services.database_service import DatabaseService
 from app.services.indexer_service import IndexerService
 from dotenv import load_dotenv
@@ -163,7 +165,16 @@ async def auth_callback(request: Request, shop: str, code: str):
 async def root():
     return {"message": "Product Scout API is online", "mode": "multi-tenant"}
 
+@app.get("/test")
+async def test_page():
+    return FileResponse("test_overlay.html")
+
 app.include_router(search_router)
+app.include_router(tracking_router)
+
+# Serve static files for the storefront overlay
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
     import uvicorn

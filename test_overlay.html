@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Scout Test Store</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .hero {
+            text-align: center;
+            max-width: 600px;
+        }
+        h1 { font-size: 3rem; margin-bottom: 16px; }
+        p { font-size: 1.25rem; color: #64748b; }
+    </style>
+    <!-- Mock Shopify Object -->
+    <script>
+        window.Shopify = {
+            shop: "eniolas-sports-store.myshopify.com"
+        };
+    </script>
+</head>
+<body>
+    <div class="hero">
+        <h1>Eniola's Sports Store</h1>
+        <p>Premium athletic gear for enthusiasts. Tested by Product Scout.</p>
+    </div>
+
+    <!-- Product Scout Embed -->
+    <script src="http://localhost:8000/static/scout-overlay.js"></script>
+</body>
+</html>

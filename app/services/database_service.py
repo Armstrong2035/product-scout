@@ -60,3 +60,31 @@ class DatabaseService:
         except Exception as e:
             print(f"[DATABASE ERROR] Failed to update credits: {e}")
             return False
+
+    async def increment_query_count(self, shop_url: str):
+        """Update total query count for a merchant."""
+        if not self.client: return
+        try:
+            # Fetch current
+            res = self.client.table("merchants").select("total_queries").eq("shop_url", shop_url).execute()
+            if res.data:
+                curr = res.data[0].get("total_queries", 0)
+                self.client.table("merchants").update({"total_queries": curr + 1}).eq("shop_url", shop_url).execute()
+        except Exception as e:
+            print(f"[DATABASE ERROR] Failed to increment query count: {e}")
+
+    async def log_search(self, analytics_data: Dict[str, Any]):
+        """Log search telemetry to Supabase."""
+        if not self.client: return
+        try:
+            self.client.table("search_analytics").insert(analytics_data).execute()
+        except Exception as e:
+            print(f"[DATABASE ERROR] Failed to log search: {e}")
+
+    async def log_attribution_event(self, event_data: Dict[str, Any]):
+        """Log click or cart event to Supabase."""
+        if not self.client: return
+        try:
+            self.client.table("attribution_events").insert(event_data).execute()
+        except Exception as e:
+            print(f"[DATABASE ERROR] Failed to log attribution event: {e}")

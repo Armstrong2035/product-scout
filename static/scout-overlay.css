@@ -1,0 +1,255 @@
+/* Scout Overlay Design System */
+:root {
+  --scout-primary: #6366f1;
+  --scout-primary-hover: #4f46e5;
+  --scout-bg-glass: rgba(255, 255, 255, 0.7);
+  --scout-bg-dark: rgba(15, 23, 42, 0.9);
+  --scout-text-main: #1e293b;
+  --scout-text-muted: #64748b;
+  --scout-border: rgba(226, 232, 240, 0.8);
+  --scout-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --scout-blur: 12px;
+}
+
+#scout-overlay-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Floating Action Button */
+.scout-fab {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--scout-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--scout-shadow);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  overflow: hidden;
+}
+
+.scout-fab:hover {
+  transform: scale(1.05) translateY(-2px);
+  background: var(--scout-primary-hover);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+.scout-fab svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* Search Drawer */
+.scout-drawer {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  width: 90vw;
+  max-width: 800px;
+  height: 80vh;
+  background: var(--scout-bg-glass);
+  backdrop-filter: blur(var(--scout-blur));
+  -webkit-backdrop-filter: blur(var(--scout-blur));
+  border: 1px solid var(--scout-border);
+  border-radius: 24px;
+  box-shadow: var(--scout-shadow);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scout-drawer.open {
+  display: flex;
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Header */
+.scout-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--scout-border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.scout-search-container {
+  flex: 1;
+  position: relative;
+}
+
+.scout-input {
+  width: 100%;
+  padding: 12px 16px 12px 48px;
+  border-radius: 12px;
+  border: 1px solid var(--scout-border);
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.scout-input:focus {
+  border-color: var(--scout-primary);
+}
+
+.scout-search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--scout-text-muted);
+}
+
+/* Results Content */
+.scout-content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.scout-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+/* Product Card */
+.scout-card {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--scout-border);
+  overflow: hidden;
+  transition: all 0.2s;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.scout-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.scout-card-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: #f8fafc;
+}
+
+.scout-card-info {
+  padding: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.scout-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--scout-text-main);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.scout-card-price {
+  font-size: 14px;
+  color: var(--scout-text-muted);
+  margin-top: auto;
+}
+
+/* AI Justification Badge/Tooltip */
+.scout-ai-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--scout-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.scout-ai-badge.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.scout-ai-tooltip {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  width: 240px;
+  background: var(--scout-bg-dark);
+  color: white;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  z-index: 10;
+  display: none;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.scout-card:hover .scout-ai-tooltip {
+  display: block;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Phase 1 Loading Skeleton */
+.scout-skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Quick Add Button */
+.scout-add-btn {
+  width: 100%;
+  padding: 8px;
+  margin-top: 12px;
+  background: var(--scout-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.scout-add-btn:hover {
+  background: var(--scout-primary-hover);
+}
