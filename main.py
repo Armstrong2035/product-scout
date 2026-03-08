@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.search import router as search_router
 from app.api.tracking import router as tracking_router
+from app.api.analytics import router as analytics_router
 from app.services.database_service import DatabaseService
 from dotenv import load_dotenv
 
@@ -171,6 +172,7 @@ async def test_page():
 
 app.include_router(search_router)
 app.include_router(tracking_router)
+app.include_router(analytics_router)
 
 # Serve static files for the storefront overlay
 os.makedirs("static", exist_ok=True)

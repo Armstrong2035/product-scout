@@ -88,3 +88,22 @@ class DatabaseService:
             self.client.table("attribution_events").insert(event_data).execute()
         except Exception as e:
             print(f"[DATABASE ERROR] Failed to log attribution event: {e}")
+
+    async def get_dashboard_analytics(self, shop_url: str, days: int = 30) -> Optional[Dict[str, Any]]:
+        """
+        Calls the highly-performant Supabase RPC to aggregate all dashboard metrics
+        (Searches, Carts, Checkouts, Trending Queries, Missed Opportunities, Top Products)
+        in a single database transaction.
+        """
+        if not self.client: return None
+        try:
+            # We use the Supabase JS-equivalent rpc call
+            res = self.client.rpc(
+                "get_dashboard_analytics", 
+                {"target_shop": shop_url, "days_back": days}
+            ).execute()
+            
+            return res.data
+        except Exception as e:
+            print(f"[DATABASE ERROR] Failed to fetch analytics: {e}")
+            return None
