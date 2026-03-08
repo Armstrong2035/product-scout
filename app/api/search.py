@@ -7,6 +7,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from app.services.database_service import DatabaseService
+from app.services.embedding_service import EmbeddingService
+from app.services.vector_service import VectorService
+from app.services.rerank_service import RerankService
 import google.generativeai as genai
 
 router = APIRouter(tags=["search"])
@@ -85,9 +88,11 @@ async def _get_single_explanation(query: str, product: Dict[str, Any], index: in
 async def search_products(request: SearchRequest):
     """
     Streaming Search Pipeline (SSE):
-      1. Immediate Stream: Deliver raw search results (IDs/scores) in <200ms.
-      2. Background Phase: Execute concurrent individual LLM calls for justifications.
-      3. Incremental Stream: Yield each justification as soon as it's ready.
+      1. Retrieval: Embed locally (FastEmbed) + Vector Search (Pinecone).
+      2. Rerank: Cohere Rerank v3.
+      3. Immediate Stream: Deliver results (IDs/scores) in <200ms.
+      4. Background Phase: Execute concurrent individual LLM calls for justifications.
+      5. Incremental Stream: Yield each justification as ready.
     """
     start_time = time.monotonic()
     search_id = str(os.urandom(8).hex()) # Unique trace ID
@@ -95,37 +100,47 @@ async def search_products(request: SearchRequest):
     async def generate_search_stream():
         try:
             db = DatabaseService()
-            # ── 1. Retrieval ──────────────────────────────────────────────────
-            from app.services.vector_service import VectorService
+            embedder = EmbeddingService()
             vector_service = VectorService()
+            reranker = RerankService()
             
-            # Use raw Pinecone query for speed
-            all_candidates = vector_service.query_vectors(
-                request.query,
+            # ── 1. Embedding & Retrieval ──────────────────────────────────────
+            query_vector = await embedder.get_query_embedding(request.query)
+            candidates = vector_service.query_vectors(
+                query_vector,
                 namespace=request.shop_url,
-                limit=request.limit or 5
+                top_k=50 # ceiling for reranker
             )
 
-            if not all_candidates:
+            if not candidates:
                 yield f"data: {json.dumps({'type': 'empty'})}\n\n"
                 return
 
-            # ── 2. Immediate Delivery ─────────────────────────────────────────
+            # ── 2. Reranking ──────────────────────────────────────────────────
+            # Trim to natural cluster before reranking
+            trimmed = VectorService.detect_score_gap(candidates, min_results=request.limit or 5)
+            reranked = await reranker.rerank(
+                query=request.query,
+                candidates=trimmed,
+                top_n=request.limit or 5
+            )
+
+            # ── 3. Immediate Delivery ─────────────────────────────────────────
             results = [
                 {
-                    "storefront_id": c["metadata"].get("storefront_id"),
-                    "score": c["score"]
+                    "storefront_id": r["metadata"].get("storefront_id"),
+                    "score": r.get("rerank_score") or r["score"]
                 }
-                for c in all_candidates
+                for r in reranked
             ]
             
             yield f"data: {json.dumps({'type': 'results', 'search_id': search_id, 'results': results})}\n\n"
 
-            # ── 3. STAGE 2: Concurrent Justifications ─────────────────────────
+            # ── 4. STAGE 2: Concurrent Justifications ─────────────────────────
             # Fire all LLM calls in parallel
             explanation_tasks = [
                 _get_single_explanation(request.query, product, i)
-                for i, product in enumerate(all_candidates)
+                for i, product in enumerate(reranked)
             ]
 
             # Yield each explanation as soon as it finishes
@@ -133,7 +148,7 @@ async def search_products(request: SearchRequest):
                 result = await task
                 yield f"data: {json.dumps({'type': 'explanation', 'index': result['index'], 'explanation': result['explanation']})}\n\n"
 
-            # ── 4. Final Telemetry ─────────────────────────────────────────────
+            # ── 5. Final Telemetry ─────────────────────────────────────────────
             latency_ms = int((time.monotonic() - start_time) * 1000)
             top_result_id = results[0]["storefront_id"] if results else None
             
