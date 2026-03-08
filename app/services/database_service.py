@@ -122,3 +122,24 @@ class DatabaseService:
         except Exception as e:
             print(f"[DATABASE ERROR] Failed to fetch recent searches: {e}")
             return []
+
+    async def get_raw_logs(self, shop_url: str, start_date: Optional[str] = None, end_date: Optional[str] = None, limit: int = 100, offset: int = 0) -> list:
+        """
+        Fetch raw, paginated search logs for a merchant, joining any associated attribution events.
+        Ideal for CSV exports or BI tool integrations.
+        """
+        if not self.client: return []
+        try:
+            # We use Supabase relation syntax to join attribution_events
+            query = self.client.table("search_logs").select("*, attribution_events(*)").eq("shop_url", shop_url)
+            
+            if start_date:
+                query = query.gte("created_at", start_date)
+            if end_date:
+                query = query.lte("created_at", end_date)
+                
+            res = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+            return res.data
+        except Exception as e:
+            print(f"[DATABASE ERROR] Failed to fetch raw logs for export: {e}")
+            return []

@@ -70,3 +70,45 @@ async def get_recent_searches_feed(
     except Exception as e:
         print(f"[ANALYTICS ERROR] {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch recent searches feed")
+
+@router.get("/logs")
+async def get_raw_logs(
+    shop_url: str = Query(..., description="The Shopify store domain"),
+    start_date: Optional[str] = Query(None, description="ISO8601 start date (e.g. 2026-03-01T00:00:00Z)"),
+    end_date: Optional[str] = Query(None, description="ISO8601 end date (e.g. 2026-03-31T23:59:59Z)"),
+    limit: int = Query(100, description="Max records to return (max 1000)", le=1000),
+    offset: int = Query(0, description="Pagination offset")
+):
+    """
+    Returns the raw search logs and joined attribution events for the requested timeframe.
+    Provides BI teams and developers the deep data needed to build custom reports.
+    """
+    try:
+        db = DatabaseService()
+        
+        # Verify merchant
+        merchant = await db.get_merchant(shop_url)
+        if not merchant:
+            raise HTTPException(status_code=404, detail="Merchant not found or unauthorized.")
+            
+        logs = await db.get_raw_logs(
+            shop_url=shop_url, 
+            start_date=start_date, 
+            end_date=end_date, 
+            limit=limit, 
+            offset=offset
+        )
+        
+        return {
+            "meta": {
+                "shop_url": shop_url,
+                "limit": limit,
+                "offset": offset,
+                "count": len(logs)
+            },
+            "data": logs
+        }
+        
+    except Exception as e:
+        print(f"[ANALYTICS ERROR] {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch raw analytics logs")
