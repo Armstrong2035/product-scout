@@ -3,12 +3,14 @@ import os
 import asyncio
 from typing import List, Dict, Any, Optional
 from app.services.shopify_service import ShopifyService
-from app.services.embedding_service import EmbeddingService
-from app.services.qdrant_service import QdrantService
+from app.services.vector_service import VectorService
+import google.generativeai as genai
 
 class IndexerService:
     def __init__(self):
-        self.embedding_service = EmbeddingService()
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        if self.api_key:
+            genai.configure(api_key=self.api_key)
         
     def clean_product_data(self, raw_products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -48,9 +50,22 @@ class IndexerService:
             cleaned.append(item)
         return cleaned
 
+    async def _get_embedding(self, text: str) -> List[float]:
+        """Generate embedding via Gemini API."""
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: genai.embed_content(
+                model="models/text-embedding-004",
+                content=text,
+                task_type="retrieval_document"
+            )
+        )
+        return result["embedding"]
+
     async def run_indexing_pipeline(self, site_id: Optional[str] = None, admin_access_token: Optional[str] = None):
         """
-        Automated pipeline: Extract -> Clean -> Vectorize -> Push to Qdrant
+        Automated pipeline: Extract -> Clean -> Vectorize (Gemini) -> Push to Pinecone
         """
         # Fallback to env if site_id not provided
         target_site = site_id or os.getenv("SHOPIFY_SHOP_URL")
@@ -70,19 +85,19 @@ class IndexerService:
             
         clean_data = self.clean_product_data(raw_products)
         
-        # 3. Vectorize and Push to Qdrant
-        vector_service = QdrantService()
-        print(f"[INDEXER] Generating local embeddings for {len(clean_data)} products...")
-        qdrant_points = []
+        # 3. Vectorize and Push to Pinecone
+        vector_service = VectorService()
+        print(f"[INDEXER] Generating Gemini embeddings for {len(clean_data)} products...")
+        pinecone_vectors = []
         
         for item in clean_data:
             try:
-                # FastEmbed BGE embeddings (local CPU)
-                vector = await self.embedding_service.get_embeddings(item["content"])
+                # Cloud Embeddings
+                vector = await self._get_embedding(item["content"])
                 
-                qdrant_points.append({
-                    "id": int(item["id"]) if item["id"].isdigit() else hash(item["id"]),
-                    "vector": vector,
+                pinecone_vectors.append({
+                    "id": item["id"],
+                    "values": vector,
                     "metadata": {
                         "title": item["title"],
                         "handle": item["handle"],
@@ -97,8 +112,8 @@ class IndexerService:
             except Exception as e:
                 print(f"[INDEXER ERROR] Failed to embed product {item['id']}: {e}")
             
-        if qdrant_points:
-            vector_service.upsert_vectors(qdrant_points, site_id=current_site)
-            print(f"[INDEXER] Pipeline complete! Pushed {len(qdrant_points)} products to Qdrant for '{current_site}'.")
+        if pinecone_vectors:
+            vector_service.upsert_vectors(pinecone_vectors, namespace=current_site)
+            print(f"[INDEXER] Pipeline complete! Pushed {len(pinecone_vectors)} products to Pinecone for '{current_site}'.")
         
-        return len(qdrant_points)
+        return len(pinecone_vectors)

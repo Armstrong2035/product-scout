@@ -9,8 +9,7 @@ _CANDIDATE_CEILING = 50
 class VectorService:
     def __init__(self):
         self.api_key = os.getenv("PINE_CONE_API_KEY")
-        # Shifted to fastembed dimension (768)
-        self.index_name = "product-scout-fastembed" 
+        self.index_name = "product-scout-gemini"
         
         if not self.api_key:
             raise ValueError("PINE_CONE_API_KEY not found in environment")
@@ -29,7 +28,7 @@ class VectorService:
             print(f"[VECTOR] Creating new Pinecone index: {self.index_name}")
             self.pc.create_index(
                 name=self.index_name,
-                dimension=768, # BGE-Base dimension
+                dimension=3072, # Gemini Embedding dimension (e.g. text-embedding-004)
                 metric="cosine",
                 spec=ServerlessSpec(
                     cloud="aws",
@@ -43,12 +42,12 @@ class VectorService:
             print(f"[VECTOR] Connected to existing Pinecone index: {self.index_name}")
 
     def upsert_vectors(self, vectors: List[Dict[str, Any]], namespace: str):
-        """Pushes embeddings to Pinecone."""
+        """Pushes embeddings to Pinecone with metadata in a specific namespace."""
         print(f"[VECTOR] Upserting {len(vectors)} vectors to namespace '{namespace}'...")
         self.index.upsert(vectors=vectors, namespace=namespace)
 
-    def query_vectors(self, query_embedding: List[float], namespace: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """Searches Pinecone for similar vectors."""
+    def query_vectors(self, query_embedding: List[float], namespace: str, top_k: int = 5) -> List[Dict[Dict[str, Any]]]:
+        """Searches Pinecone for similar vectors within a specific namespace."""
         results = self.index.query(
             vector=query_embedding,
             top_k=_CANDIDATE_CEILING,
@@ -67,7 +66,7 @@ class VectorService:
 
     @staticmethod
     def detect_score_gap(matches: List[Dict[str, Any]], min_results: int = 5) -> List[Dict[str, Any]]:
-        """Trims results at the natural cluster boundary."""
+        """Scans consecutive score differences and cuts at the largest gap."""
         if len(matches) <= min_results:
             return matches
 

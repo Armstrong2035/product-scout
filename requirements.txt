@@ -6,6 +6,5 @@ google-generativeai
 python-dotenv
 supabase
 pinecone
-qdrant-client>=1.7.0
-fastembed>=0.2.0
+cohere
 gunicorn
