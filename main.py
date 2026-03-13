@@ -3,6 +3,7 @@ import hmac
 import hashlib
 import httpx
 from fastapi import FastAPI, Request, HTTPException, Query, Depends
+from pydantic import BaseModel
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -161,6 +162,73 @@ async def auth_callback(request: Request, shop: str, code: str):
         
     # Redirect to successful install page or app dashboard
     return RedirectResponse(url=f"https://{shop}/admin/apps/product-scout")
+
+
+# --- Provision Endpoint (called by React app after its own OAuth) ---
+
+class ProvisionRequest(BaseModel):
+    shop_url: str
+    access_token: str
+
+@app.post("/provision")
+async def provision(payload: ProvisionRequest):
+    """
+    Idempotent merchant provisioning.
+    Called by the React app after authenticate.admin() succeeds.
+    - If merchant already exists in Supabase → return immediately (no re-indexing).
+    - If new merchant → generate storefront token, upsert row, trigger indexing.
+    """
+    shop = payload.shop_url
+    access_token = payload.access_token
+
+    if not shop or not access_token:
+        raise HTTPException(status_code=400, detail="shop_url and access_token are required")
+
+    db = DatabaseService()
+
+    # --- Idempotency check ---
+    existing = await db.get_merchant(shop)
+    if existing:
+        print(f"[PROVISION] Merchant {shop} already provisioned — skipping.")
+        return {"status": "already_provisioned", "shop": shop}
+
+    # --- New merchant: generate storefront token ---
+    storefront_token = None
+    sf_url = f"https://{shop}/admin/api/2024-01/storefront_access_tokens.json"
+    sf_payload = {"storefront_access_token": {"title": "Product Scout Live Sync"}}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            sf_response = await client.post(
+                sf_url,
+                headers={"X-Shopify-Access-Token": access_token},
+                json=sf_payload
+            )
+            if sf_response.status_code == 201:
+                storefront_token = sf_response.json().get("storefront_access_token", {}).get("access_token")
+                print(f"[PROVISION] Generated Storefront Token for {shop}")
+        except Exception as e:
+            print(f"[PROVISION WARNING] Failed to generate Storefront token: {e}")
+
+    # --- Upsert merchant row in Supabase ---
+    merchant_data = {
+        "shop_url": shop,
+        "access_token": access_token,
+        "storefront_token": storefront_token,
+        "credits_balance": 100,
+        "plan_level": "free"
+    }
+    await db.save_merchant(merchant_data)
+
+    # --- Trigger initial indexing in the background ---
+    from app.services.indexer_service import IndexerService
+    import asyncio
+    indexer = IndexerService()
+    asyncio.create_task(indexer.run_indexing_pipeline(shop, access_token))
+
+    print(f"[PROVISION] Successfully onboarded {shop}")
+    return {"status": "provisioned", "shop": shop}
+
 
 @app.get("/")
 async def root():
