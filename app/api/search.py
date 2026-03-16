@@ -219,7 +219,7 @@ async def trigger_reindex(shop_url: str):
 
         indexer = IndexerService()
         count = await indexer.run_indexing_pipeline(
-            shop_url=shop_url,
+            site_id=shop_url,
             admin_access_token=merchant["access_token"]
         )
         return {"message": f"Reindexing for {shop_url} complete", "count": count}
