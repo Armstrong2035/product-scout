@@ -151,7 +151,8 @@ async def search_products(request: SearchRequest):
                 yield f"data: {json.dumps({'type': 'empty'})}\n\n"
                 return
 
-            reranked = candidates
+            max_results = request.limit or 5
+            reranked = candidates[:max_results]
 
             # ── 3. Immediate Delivery ─────────────────────────────────────────
             results = [
