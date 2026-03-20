@@ -14,7 +14,7 @@ from app.api.analytics import router as analytics_router
 from app.services.database_service import DatabaseService
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 app = FastAPI(title="Product Scout API")
 
@@ -49,9 +49,6 @@ class CreditsMiddleware(BaseHTTPMiddleware):
             
             if not merchant:
                 raise HTTPException(status_code=404, detail="Merchant not registered")
-            
-            if merchant.get("credits_balance", 0) <= 0:
-                raise HTTPException(status_code=402, detail="Payment Required: Out of credits")
                 
             # Deduct 1 credit for search (Atomic deduct would be better)
             if request.url.path == "/search":
@@ -147,7 +144,7 @@ async def auth_callback(request: Request, shop: str, code: str):
             "shop_url": shop,
             "access_token": access_token,
             "storefront_token": storefront_token,
-            "credits_balance": 100, # Welcome bonus!
+            "credits_balance": 99999, # Free launch — effectively unlimited
             "plan_level": "free"
         }
         await db.save_merchant(merchant_data)
@@ -215,7 +212,7 @@ async def provision(payload: ProvisionRequest):
         "shop_url": shop,
         "access_token": access_token,
         "storefront_token": storefront_token,
-        "credits_balance": 100,
+        "credits_balance": 99999, # Free launch — effectively unlimited
         "plan_level": "free"
     }
     await db.save_merchant(merchant_data)
@@ -229,6 +226,11 @@ async def provision(payload: ProvisionRequest):
     print(f"[PROVISION] Successfully onboarded {shop}")
     return {"status": "provisioned", "shop": shop}
 
+
+@app.get("/ping")
+async def ping():
+    """Lightweight health check to keep the server warm."""
+    return {"status": "ok"}
 
 @app.get("/")
 async def root():

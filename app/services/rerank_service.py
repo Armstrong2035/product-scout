@@ -3,9 +3,6 @@ import asyncio
 from typing import List, Dict, Any
 import cohere
 
-COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-
-
 class RerankService:
     """
     Wraps the Cohere Rerank v3.5 API.
@@ -14,9 +11,10 @@ class RerankService:
     """
 
     def __init__(self):
-        if not COHERE_API_KEY:
+        api_key = os.getenv("COHERE_API_KEY")
+        if not api_key:
             raise ValueError("COHERE_API_KEY not found in environment")
-        self.client = cohere.Client(api_key=COHERE_API_KEY)
+        self.client = cohere.Client(api_key=api_key)
 
     def _build_document_text(self, meta: Dict[str, Any]) -> str:
         """Serialize the product metadata fields we care about into a single string for the reranker."""

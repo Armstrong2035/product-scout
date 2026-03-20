@@ -1,5 +1,7 @@
 (function() {
-  const API_BASE = window.location.origin; // Same origin as the served script
+  // Dynamically infer API Base from where this script is hosted
+  const currentScript = document.currentScript;
+  const API_BASE = currentScript ? new URL(currentScript.src).origin : "https://productscout.shop";
   const SHOP_URL = window.Shopify ? window.Shopify.shop : new URL(window.location.href).searchParams.get('shop');
 
   if (!SHOP_URL) {
@@ -125,6 +127,11 @@
   }
 
   function handleStreamingEvent(data, grid) {
+    if (data.error) {
+      console.error('[SCOUT SERVER ERROR]', data.error);
+      document.getElementById('scout-results').innerHTML = `<div style="color:red; text-align:center; padding: 40px;">Oops, an error occurred!<br><br><small>${data.error}</small></div>`;
+      return;
+    }
     if (data.type === 'results') {
       currentSearchId = data.search_id;
       setCookie('scout_last_query', currentSearchId);

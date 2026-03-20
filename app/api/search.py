@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from app.services.database_service import DatabaseService
 from app.services.vector_service import VectorService
-from app.services.rerank_service import RerankService
 import google.generativeai as genai
 
 router = APIRouter(tags=["search"])
@@ -106,7 +105,7 @@ async def _get_single_explanation(query: str, product: Dict[str, Any], index: in
 
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-3.0-flash")
         prompt = _build_llm_explanation_prompt(query, product)
 
         loop = asyncio.get_event_loop()
@@ -139,28 +138,20 @@ async def search_products(request: SearchRequest):
         try:
             db = DatabaseService()
             vector_service = VectorService()
-            reranker = RerankService()
             
             # ── 1. Embedding & Retrieval ──────────────────────────────────────
             query_vector = await _get_gemini_embedding(request.query)
             candidates = vector_service.query_vectors(
                 query_vector,
                 namespace=request.shop_url,
-                top_k=50 # ceiling for reranker
+                top_k=request.limit or 5
             )
 
             if not candidates:
                 yield f"data: {json.dumps({'type': 'empty'})}\n\n"
                 return
 
-            # ── 2. Reranking ──────────────────────────────────────────────────
-            # Trim to natural cluster before reranking
-            trimmed = VectorService.detect_score_gap(candidates, min_results=request.limit or 5)
-            reranked = await reranker.rerank(
-                query=request.query,
-                candidates=trimmed,
-                top_n=request.limit or 5
-            )
+            reranked = candidates
 
             # ── 3. Immediate Delivery ─────────────────────────────────────────
             results = [
@@ -204,7 +195,12 @@ async def search_products(request: SearchRequest):
             print(f"[STREAM ERROR] {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-    return StreamingResponse(generate_search_stream(), media_type="text/event-stream")
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no"
+    }
+    return StreamingResponse(generate_search_stream(), media_type="text/event-stream", headers=headers)
 
 
 @router.post("/reindex")
