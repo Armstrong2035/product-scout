@@ -12,5 +12,14 @@ jobs:
     steps:
       - name: Ping server
         run: |
-          curl --fail --silent --show-error "${{ secrets.RENDER_URL }}/ping"
+          echo "Pinging ${{ secrets.RENDER_URL }}/ping ..."
+          curl \
+            --retry 3 \
+            --retry-delay 10 \
+            --max-time 30 \
+            --silent \
+            --show-error \
+            --output /dev/null \
+            --write-out "HTTP %{http_code}\n" \
+            "${{ secrets.RENDER_URL }}/ping"
           echo "Server is warm ✅"
